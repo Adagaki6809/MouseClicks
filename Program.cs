@@ -89,13 +89,3 @@ class InterceptKeys
     };
 
 }
-
-
-//flag = 1;
-//Console.WriteLine("MouseDown[{0}]\n",i);
-//i++;
-
-
-
-//int vkCode = Marshal.ReadInt32(lParam);
-//(Keys)vkCode
