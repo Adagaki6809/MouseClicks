@@ -1,19 +1,17 @@
-﻿using System;
-using System.Diagnostics;
-using System.Windows.Forms;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Threading;
 
 namespace FixMouse
 {
     public class InterceptKeys
     {
         private const int WH_MOUSE_LL = 14;
-        private const int WM_LBUTTONDOWN = 0x0201;
+        private const int WM_LBUTTONDOWN = 0x0201, WM_RBUTTONDOWN = 0x0204;
         private static readonly LowLevelMouseProc _proc = HookCallback;
         private static IntPtr _hookID = IntPtr.Zero;
-        private static readonly Stopwatch sw = new Stopwatch();
-
+        private static readonly Stopwatch swLeftClick = new (), swRightClick = new ();
+        private const string appName = "MouseClicks.exe";
+        private static int countClicks = 0, time = 120;
         public static void Main()
         {
             _hookID = SetHook(_proc);
@@ -24,10 +22,9 @@ namespace FixMouse
         private static IntPtr SetHook(LowLevelMouseProc proc)
         {
             using (Process curProcess = Process.GetCurrentProcess())
-            using (ProcessModule curModule = curProcess.MainModule)
+            using (ProcessModule? curModule = curProcess.MainModule)
             {
-                return SetWindowsHookEx(WH_MOUSE_LL, proc,
-                    GetModuleHandle(curModule.ModuleName), 0);
+                return SetWindowsHookEx(WH_MOUSE_LL, proc, GetModuleHandle(curModule?.ModuleName ?? appName), 0);
             }
         }
 
@@ -35,26 +32,36 @@ namespace FixMouse
 
         private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
-            if (wParam == (IntPtr)WM_LBUTTONDOWN)
+            switch((int)wParam)
             {
-                Console.WriteLine("Time: " + sw.ElapsedMilliseconds);
-                if (sw.IsRunning)
-                {
-                    sw.Stop();
-                    if (sw.ElapsedMilliseconds > 200)
-                    {
-                        sw.Reset();
-                    }
-                    else
-                    {
-                        sw.Reset();
-                        sw.Start();
-                        return new IntPtr(1);
-                    }
-                }
-                if (!sw.IsRunning)
-                    sw.Start();
+                case WM_LBUTTONDOWN:
+                    return CountTimeBetweenClicks(swLeftClick, nCode, wParam, lParam);
+                case WM_RBUTTONDOWN:
+                    return CountTimeBetweenClicks(swRightClick, nCode, wParam, lParam);
+                default:
+                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
             }
+        }
+
+        private static IntPtr CountTimeBetweenClicks(Stopwatch sw, int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            Console.WriteLine($"[{countClicks++}] {((int)wParam == WM_LBUTTONDOWN ? "Left " : "Right")} Time: {sw.ElapsedMilliseconds}");
+            if (sw.IsRunning)
+            {
+                sw.Stop();
+            if (sw.ElapsedMilliseconds > time)
+                {
+                    sw.Reset();
+                }
+                else
+                {   
+                    sw.Reset();
+                    sw.Start();
+                    return new IntPtr(1);
+                }
+            }   
+            if (!sw.IsRunning)
+                sw.Start();
             return CallNextHookEx(_hookID, nCode, wParam, lParam);
         }
 
