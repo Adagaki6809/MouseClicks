@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 
 namespace FixMouse
@@ -12,8 +13,10 @@ namespace FixMouse
         private static readonly Stopwatch swLeftClick = new (), swRightClick = new ();
         private const string appName = "MouseClicks.exe";
         private static int countClicks = 0, time = 120;
+        private static bool timerStarted = false;
         public static void Main()
         {
+            Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
             _hookID = SetHook(_proc);
             Application.Run();
             UnhookWindowsHookEx(_hookID);
@@ -45,21 +48,42 @@ namespace FixMouse
 
         private static IntPtr CountTimeBetweenClicks(Stopwatch sw, int nCode, IntPtr wParam, IntPtr lParam)
         {
-            Console.WriteLine($"[{countClicks++}] {((int)wParam == WM_LBUTTONDOWN ? "Left " : "Right")} Time: {sw.ElapsedMilliseconds}");
+            try
+            {
+                var _h = Console.WindowHeight;
+                if (!timerStarted)
+                {
+                    timerStarted = true;
+                    var oldClicks = countClicks;
+                    var _t = new System.Threading.Timer((o) =>
+                    {
+                        var clicksPerSecond = (float)(countClicks - oldClicks) / 2f;
+                        var roundsPerMinute = clicksPerSecond * 2 * 60;
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine($"CPS: {clicksPerSecond.ToString("0.0")}  RPM: {roundsPerMinute}");
+                        Console.ForegroundColor = ConsoleColor.White;
+                        timerStarted = false;
+                    }, null, 2000, System.Threading.Timeout.Infinite);
+                }
+                countClicks++;
+                Console.WriteLine($"{((int)wParam == WM_LBUTTONDOWN ? "Left " : "Right")}    Time: {sw.ElapsedMilliseconds}");
+            }
+            catch {}
+
             if (sw.IsRunning)
             {
                 sw.Stop();
-            if (sw.ElapsedMilliseconds > time)
+                if (sw.ElapsedMilliseconds > time)
                 {
                     sw.Reset();
                 }
                 else
-                {   
+                {
                     sw.Reset();
                     sw.Start();
                     return new IntPtr(1);
                 }
-            }   
+            }
             if (!sw.IsRunning)
                 sw.Start();
             return CallNextHookEx(_hookID, nCode, wParam, lParam);
